@@ -2,7 +2,7 @@
  * @Author: DemoSting1 1562752074@qq.com
  * @Date: 2024-03-28 21:12:50
  * @LastEditors: DemoSting1 1562752074@qq.com
- * @LastEditTime: 2024-03-30 09:12:46
+ * @LastEditTime: 2024-04-05 09:57:45
  * @FilePath: \model_viewer_v1\src\constants\constants.js
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -50,18 +50,12 @@ export const TOYS_MODEL_FILE_LIST_JSON = {
     { value: "models/4838-1-MiniVehicles.mpd_Packed.mpd", label: "拖车" },
     { value: "models/4915-1-MiniConstruction.mpd_Packed.mpd", label: "推土机" },
     { value: "models/4918-1-MiniFlyers.mpd_Packed.mpd", label: "直升机" },
-    { value: "models/5935-1-IslandHopper.mpd_Packed.mpd", label: "飞机" },
-    { value: "models/30023-1-Lighthouse.ldr_Packed.mpd", label: "灯塔" },
+    { value: "models/30023-1-Lighthouse.ldr_Packed.mpd", label: "灯塔", yStep: -100 },
     {
       value: "models/30051-1-X-wingFighter-Mini.mpd_Packed.mpd",
       label: "X-Wing mini",
     },
-    { value: "models/30054-1-AT-ST-Mini.mpd_Packed.mpd", label: "AT-ST mini" },
-    { value: "models/4489-1-AT-AT-Mini.mpd_Packed.mpd", label: "AT-AT mini" },
-    {
-      value: "models/10174-1-ImperialAT-ST-UCS.mpd_Packed.mpd",
-      label: "AT-ST",
-    },
+    { value: "models/30054-1-AT-ST-Mini.mpd_Packed.mpd", label: "AT-ST mini", yStep: 40 },
     {
       value: "models/4494-1-Imperial Shuttle-Mini.mpd_Packed.mpd",
       label: "公共汽车",
@@ -69,12 +63,12 @@ export const TOYS_MODEL_FILE_LIST_JSON = {
     {
       value: "models/6965-1-TIEIntercep_4h4MXk5.mpd_Packed.mpd",
       label: "拦截机",
+      yStep: 50
     },
     {
       value: "models/6966-1-JediStarfighter-Mini.mpd_Packed.mpd",
       label: "明星战斗机",
     },
-    { value: "models/7140-1-X-wingFighter.mpd_Packed.mpd", label: "X-Wing" },
   ],
 };
 

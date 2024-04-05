@@ -12,6 +12,7 @@
     "@tweenjs/tween.js": "^23.1.1",
     "core-js": "^3.8.3",
     "element-plus": "^2.6.2",
+    "lodash": "^4.17.21",
     "mitt": "^3.0.1",
     "three": "^0.162.0",
     "vue": "^3.2.13"

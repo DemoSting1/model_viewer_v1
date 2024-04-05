@@ -12,14 +12,17 @@ import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { PMREMGenerator } from "three/src/extras/PMREMGenerator.js";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 // import ColorSelectButton from "@/components/ColorSelectButton/index.vue";
 // import ListComponent from "@/components/ListComponent/index.vue";
 // import ButtonList from "@/components/ButtonList/index.vue";
-import { FontLoader } from "three/examples/jsm/loaders/FontLoader.js";
 import TWEEN from "@tweenjs/tween.js";
-import { WEBGL_PARAMS, TOYS_MODEL_FILE_LIST } from "@/constants/constants.js";
+// WEBGL_PARAMS, 
+import { TOYS_MODEL_FILE_LIST_JSON } from "@/constants/constants.js";
 import { zoomIn, zoomOut } from "./ThreeElements/controls/controls.js"
+import { initCamera, setFrontView, setSideView, setTopView, setDefaultView, cameraPositionAndLookAt } from "./ThreeElements/camera/camera.js";
+import { initContols } from "./ThreeElements/controls/controls.js"
+import { clearModel } from "./ThreeElements/scene/scene.js";
+import { hideModel, showModel, createModelSizeRect, hideModelSizeRect } from "./ThreeElements/geometry/geometry.js"
 import EventBus from "@/utils/EventBus.js"
 //scene 或者 mesh 变量不要在data(){ }中定义，而是要定义成全局变量，可以解决：
 // 【TypeError: 'get' on proxy: property 'modelViewMatrix' is a read-only and non-configurable data property on the proxy target but the proxy did not return its actual value ...】
@@ -35,6 +38,7 @@ export default {
     return {
       renderer: null,
       modelSize: new THREE.Vector3(0, 0, 0),
+      modelUrl: "/" + TOYS_MODEL_FILE_LIST_JSON.models[0].value
     };
   },
   components: {
@@ -42,9 +46,7 @@ export default {
   },
   mounted() {
     this.init();
-    const url = "/" + TOYS_MODEL_FILE_LIST["X-Wing mini"];
-    console.log(url);
-    this.loadModel(url, "mpd");
+    this.loadModel(this.modelUrl);
     this.animate();
     EventBus.on('modelZoomInEvent', () => {
       if (controls) { // 解决controls没有挂载问题
@@ -56,6 +58,36 @@ export default {
         zoomOut(controls)
       }
     })
+    EventBus.on('showModelEvent', () => {
+      showModel(scene)
+    })
+    EventBus.on('hideModelEvent', () => {
+      hideModel(scene)
+    })
+    // 展示模型的矩形外框
+    EventBus.on('showModelSizeRectEvent', () => {
+      createModelSizeRect(scene)
+    })
+    // 关闭模型矩形外框
+    EventBus.on('hideModelSizeRectEvent', () => {
+      hideModelSizeRect(scene)
+    })
+    EventBus.on('modelSelectedChangedEvent', (url) => {
+      this.modelUrl = url
+      this.loadModel(this.modelUrl)
+    })
+    EventBus.on('modelFrontViewEvent', () => {
+      setFrontView(this.camera)
+    })
+    EventBus.on('modelSideViewEvent', () => {
+      setSideView(this.camera)
+    })
+    EventBus.on('modelTopViewEvent', () => {
+      setTopView(this.camera)
+    })
+    EventBus.on('modelDefaultViewEvent', () => {
+      setDefaultView(this.camera)
+    })
   },
   watch() {
     controls
@@ -64,19 +96,7 @@ export default {
     init() {
       // 创建场景
       scene = new THREE.Scene();
-      // scene.background = new THREE.Color(0xdeebed);
       scene.background = new THREE.Color("transparent");
-
-      // 创建相机
-      this.camera = new THREE.PerspectiveCamera(
-        35,
-        window.innerWidth / window.innerHeight,
-        1,
-        1500
-      );
-      this.camera.position.set(
-        ...WEBGL_PARAMS.THREE_CAMERA_POSITION.initPosition
-      );
 
       // antialias: true 表示开启抗锯齿功能，使得渲染的图像更加平滑。
       this.renderer = new THREE.WebGLRenderer({ antialias: true, depth: true });
@@ -103,26 +123,10 @@ export default {
       progressBarDiv.style.width = "100%";
       progressBarDiv.style.textAlign = "center";
 
-      controls = new OrbitControls(this.camera, this.renderer.domElement);
-      controls.enableDamping = true;
-      controls.update();
-
-      setTimeout(() => {
-        // 在需要添加尺寸标尺的位置调用函数，例如：
-        const startPoint = new THREE.Vector3(-20, -20, -20);
-        const endPoint = new THREE.Vector3(-20, -20, 20);
-        const direction = new THREE.Vector3(0, 0, 1).normalize();
-        const length = 50;
-        const color = 0xff0000;
-
-        // 使用箭头标尺
-        this.createArrowHelper(startPoint, direction, length, color);
-
-        // 使用自定义标尺
-        this.createRuler(startPoint, endPoint);
-      }, 3000);
+      this.camera = initCamera()
+      controls = initContols(this.camera, this.renderer.domElement)
     },
-    loadModel(path, modelType) {
+    loadModel(path, modelType="mpd") {
       let loader;
       switch (modelType) {
         case "obj":
@@ -141,24 +145,23 @@ export default {
       loader.load(
         path,
         (object3d) => {
-          this.cleanVertexData(object3d);
           if (object3d instanceof THREE.Object3D) {
-            object3d.scale.set(0.3, 0.3, 0.3);
-            const box = new THREE.Box3().setFromObject(object3d);
-            const size = new THREE.Vector3();
-            box.getSize(size);
-            this.modelSize = new THREE.Vector3(size.x, size.y, size.z);
             object3d.rotation.set(-Math.PI, 0, 0); // z-up conversion
+            
+            const selectedObject = TOYS_MODEL_FILE_LIST_JSON.models.find(model => model.value === path.slice(0));
+            console.log("selectedObject", path.slice(1))
+            if (selectedObject && selectedObject.yStep) {
+              object3d.position.y += selectedObject.yStep;
+            }
             object3d.traverse(function (child) {
               child.castShadow = true; // 开启阴影投射
               if (child.material) {
                 child.material.depthTest = true; // 开启材质的深度测试
               }
             });
-            console.log(object3d)
+            clearModel(scene);
             scene.add(object3d);
-            this.createModelSizeRect();
-            // this.explodeModelAlongCenterLines(object3d);
+            cameraPositionAndLookAt(this.camera, scene)
           } else {
             console.error(
               "Error: loaded object is not an instance of THREE.Object3D"
@@ -171,28 +174,6 @@ export default {
         }
       );
     },
-    // test() {
-    //   obj.traverse((child) => {
-    //     let childModel = {
-    //       value: path, // 这里可以根据实际情况设置子模型的 value
-    //       label: "模型名称",
-    //       children: [],
-    //     };
-
-    //     // 如果模型的 mesh 还包含子 mesh
-    //     if (child.children.length > 0) {
-    //       child.children.forEach((subChild) => {
-    //         childModel.children.push({
-    //           value: path, // 这里可以根据实际情况设置子模型的 value
-    //           label: "模型名称",
-    //           children: [],
-    //         });
-    //       });
-    //     }
-
-    //     model.children.push(childModel);
-    //   });
-    // },
     /**
      * 清除顶点数据为 NaN 的值
      */
@@ -210,12 +191,7 @@ export default {
       });
     },
 
-    animate() {
-      requestAnimationFrame(this.animate);
-      controls.update();
-      TWEEN.update();
-      this.renderer.render(scene, this.camera);
-    },
+    
     /**
      * 点击选中模型的构件
      * @param {*} event
@@ -254,6 +230,9 @@ export default {
       object.userData.originalMaterial = originalMaterial;
       console.log(this.getIntroText(object.userData));
     },
+    /**
+     * 恢复到原来的颜色
+     */
     restoreHighlightedObject() {
       scene.traverse((object) => {
         if (object.userData.originalMaterial) {
@@ -342,99 +321,6 @@ export default {
       return mostUsedColor;
     },
     /**
-     * 给模型添加一个尺寸标尺
-     */
-    createModelSizeRect() {
-      console.log(scene.children);
-      scene.children.forEach((child) => {
-        if (child.isObject3D) {
-          // 获取模型的包围盒信息
-          const box = new THREE.Box3().setFromObject(child);
-          const size = new THREE.Vector3();
-          box.getSize(size);
-
-          // 计算模型的长宽高
-          const width = size.x;
-          const height = size.y;
-          const depth = size.z;
-
-          const boxCenter = new THREE.Vector3();
-          box.getCenter(boxCenter);
-          // 模型的中心位置
-          const modelCenter = boxCenter.clone();
-
-          // 创建表示中心点的几何体
-          const sphereGeometry = new THREE.SphereGeometry(0.1, 8, 8);
-          const sphereMaterial = new THREE.MeshBasicMaterial({
-            color: 0xff0000,
-          });
-          const centerPoint = new THREE.Mesh(sphereGeometry, sphereMaterial);
-
-          // 将中心点添加到场景中
-          centerPoint.position.copy(modelCenter);
-          scene.add(centerPoint);
-
-          // 输出模型的中心位置
-          console.log("模型的中心位置：", modelCenter, {
-            width,
-            height,
-            depth,
-          });
-
-          // 创建透明材质
-          const material = new THREE.MeshBasicMaterial({
-            color: 0x000000,
-            transparent: true,
-            opacity: 0.1,
-            depthTest: true,
-            depthWrite: false, // 注意开启深度测试的同时，这里的深度写入也要关闭，否则会出现半透明模型消失的问题
-          });
-
-          // 创建立方体几何体
-          const geometry = new THREE.BoxGeometry(width, height, depth);
-          // 创建立方体网格对象
-          const rectangle = new THREE.Mesh(geometry, material);
-          // 设置矩形的位置为模型的中心位置
-          rectangle.position.copy(modelCenter);
-          // 将矩形添加到场景中
-          scene.add(rectangle);
-          this.createCubeSizeRuler(scene, width, height, depth, modelCenter);
-        }
-      });
-    },
-    // 创建立方体标尺
-    createCubeSizeRuler(cube, width, height, depth, modelCenter) {
-      const labelSize = 0.5; // 标尺文字的大小
-
-      // 创建标尺文本
-      function createText(text, x, y, z) {
-        const loader = new FontLoader();
-        loader.load(
-          "/public/helvetiker_regular.typeface.json",
-          function (font) {
-            const textGeo = new THREE.TextGeometry(text, {
-              font: font,
-              size: labelSize,
-              height: 0.1,
-            });
-            const textMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-            const textMesh = new THREE.Mesh(textGeo, textMat);
-            textMesh.position.set(x, y, z);
-            cube.add(textMesh);
-          }
-        );
-      }
-      // 添加长宽高标尺
-      createText(
-        width.toFixed(2),
-        modelCenter.x - width,
-        modelCenter.y,
-        modelCenter.z
-      );
-      createText(height.toFixed(2), width / 2, height / 2, -depth / 2);
-      createText(depth.toFixed(2), width / 2, height, -depth / 2 - depth / 2);
-    },
-    /**
      * 展开模型
      * @param {*} object3d
      */
@@ -467,28 +353,11 @@ export default {
         }
       });
     },
-    // 创建箭头标尺
-    createArrowHelper(position, direction, length, color) {
-      const arrowHelper = new THREE.ArrowHelper(
-        direction,
-        position,
-        length,
-        color
-      );
-      scene.add(arrowHelper);
-    },
-
-    // 创建自定义标尺
-    createRuler(start, end) {
-      const points = [start, end];
-      const material = new THREE.LineBasicMaterial({
-        color: 0xffffff,
-        depthTest: true,
-        depthWrite: true,
-      });
-      const geometry = new THREE.BufferGeometry().setFromPoints(points);
-      const line = new THREE.Line(geometry, material);
-      scene.add(line);
+    animate() {
+      requestAnimationFrame(this.animate);
+      controls.update() 
+      TWEEN.update();
+      this.renderer.render(scene, this.camera);
     },
   },
   beforeUnmount() {
